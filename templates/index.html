@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hybrid Movie Recommendation System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              night: "#0a0a0a",
+              panel: "#171717",
+              ink: "#fafafa",
+              ember: "#ef4444",
+              emberSoft: "#f87171",
+            },
+            boxShadow: {
+              glow: "0 0 60px rgba(239,68,68,0.15)",
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="bg-night text-ink min-h-screen">
+    <div class="absolute inset-0 -z-10 overflow-hidden">
+      <div class="absolute -top-24 -left-20 h-80 w-80 rounded-full bg-ember/20 blur-3xl"></div>
+      <div class="absolute top-40 right-0 h-96 w-96 rounded-full bg-red-900/25 blur-3xl"></div>
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.07),_transparent_35%)]"></div>
+    </div>
+
+    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-8 sm:py-12">
+      <header class="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p class="mb-2 inline-flex rounded-full border border-ember/40 bg-ember/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-emberSoft">
+            B.Tech Final Year Project
+          </p>
+          <h1 class="text-3xl font-bold tracking-tight sm:text-5xl">Hybrid Movie Recommendation System</h1>
+          <p class="mt-3 max-w-2xl text-sm text-zinc-300 sm:text-base">
+            Blending content intelligence and collaborative behavior to suggest movies you will love.
+          </p>
+        </div>
+      </header>
+
+      <section class="mb-8 rounded-2xl border border-white/10 bg-panel/80 p-4 shadow-glow backdrop-blur sm:p-6">
+        <div class="grid gap-4 sm:grid-cols-12">
+          <div class="relative sm:col-span-9">
+            <label for="movieInput" class="mb-2 block text-sm font-medium text-zinc-300">Search Movie</label>
+            <input
+              id="movieInput"
+              type="text"
+              placeholder="Type movie title (e.g., Inception, Interstellar)"
+              autocomplete="off"
+              class="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-ink outline-none transition focus:border-ember focus:ring-2 focus:ring-ember/30"
+            />
+            <div id="suggestions" class="absolute z-20 mt-2 hidden w-full rounded-xl border border-white/10 bg-zinc-950 shadow-2xl"></div>
+          </div>
+
+          <div class="sm:col-span-2">
+            <label for="topN" class="mb-2 block text-sm font-medium text-zinc-300">Top N</label>
+            <input
+              id="topN"
+              type="number"
+              min="1"
+              max="20"
+              value="10"
+              class="w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-ink outline-none transition focus:border-ember focus:ring-2 focus:ring-ember/30"
+            />
+          </div>
+
+          <div class="sm:col-span-1 flex items-end">
+            <button
+              id="recommendBtn"
+              class="w-full rounded-xl bg-ember px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-500"
+            >
+              Go
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-5 flex items-center justify-between">
+        <h2 class="text-2xl font-semibold">Recommendations</h2>
+        <p id="modeBadge" class="hidden rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300"></p>
+      </section>
+
+      <section id="status" class="mb-5 text-sm text-zinc-300"></section>
+
+      <section id="results" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></section>
+    </main>
+
+    <script>
+      const movieInput = document.getElementById("movieInput");
+      const topNInput = document.getElementById("topN");
+      const recommendBtn = document.getElementById("recommendBtn");
+      const suggestionsBox = document.getElementById("suggestions");
+      const statusBox = document.getElementById("status");
+      const resultsBox = document.getElementById("results");
+      const modeBadge = document.getElementById("modeBadge");
+
+      let debounceTimer;
+
+      function setStatus(message, isError = false) {
+        statusBox.textContent = message;
+        statusBox.className = isError ? "mb-5 text-sm text-red-400" : "mb-5 text-sm text-zinc-300";
+      }
+
+      function clearSuggestions() {
+        suggestionsBox.innerHTML = "";
+        suggestionsBox.classList.add("hidden");
+      }
+
+      async function loadSuggestions(query) {
+        if (!query || query.length < 2) {
+          clearSuggestions();
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/autocomplete?q=${encodeURIComponent(query)}`);
+          const data = await response.json();
+          const suggestions = data.suggestions || [];
+
+          if (!suggestions.length) {
+            clearSuggestions();
+            return;
+          }
+
+          suggestionsBox.innerHTML = suggestions
+            .map(
+              (title) =>
+                `<button class="block w-full border-b border-white/5 px-4 py-3 text-left text-sm text-zinc-100 hover:bg-zinc-800" data-title="${title}">${title}</button>`
+            )
+            .join("");
+
+          suggestionsBox.classList.remove("hidden");
+
+          suggestionsBox.querySelectorAll("button").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              movieInput.value = btn.dataset.title || "";
+              clearSuggestions();
+              fetchRecommendations();
+            });
+          });
+        } catch {
+          clearSuggestions();
+        }
+      }
+
+      function renderCards(recommendations) {
+        resultsBox.innerHTML = "";
+
+        recommendations.forEach((movie, index) => {
+          const card = document.createElement("article");
+          card.className =
+            "group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/70 transition hover:-translate-y-1 hover:border-ember/50 hover:shadow-xl";
+          card.style.animation = `fadeIn 500ms ease forwards`;
+          card.style.animationDelay = `${index * 40}ms`;
+          card.style.opacity = "0";
+
+          card.innerHTML = `
+            <img src="${movie.poster_url}" alt="${movie.title}" class="h-80 w-full object-cover" onerror="this.src='https://via.placeholder.com/500x750?text=No+Poster'" />
+            <div class="space-y-2 p-4">
+              <h3 class="line-clamp-1 text-lg font-semibold">${movie.title}</h3>
+              <p class="line-clamp-2 text-xs uppercase tracking-wide text-zinc-400">${movie.genres || "N/A"}</p>
+              <p class="line-clamp-3 text-sm text-zinc-300">${movie.overview || "No overview available."}</p>
+              <div class="flex items-center justify-between pt-2 text-xs">
+                <span class="rounded-full bg-zinc-800 px-2 py-1 text-zinc-300">Score: ${movie.score}</span>
+                <span class="text-emerald-300">${movie.mode}</span>
+              </div>
+            </div>
+          `;
+
+          resultsBox.appendChild(card);
+        });
+      }
+
+      async function fetchRecommendations() {
+        const movieTitle = movieInput.value.trim();
+        const topN = Number(topNInput.value) || 10;
+
+        if (!movieTitle) {
+          setStatus("Please enter a movie title first.", true);
+          return;
+        }
+
+        setStatus("Generating recommendations...");
+        resultsBox.innerHTML = "";
+        modeBadge.classList.add("hidden");
+
+        try {
+          const response = await fetch("/api/recommend", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              movie_title: movieTitle,
+              top_n: topN,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            let message = data.error || "Failed to fetch recommendations.";
+            if (Array.isArray(data.suggestions) && data.suggestions.length) {
+              message += ` Try: ${data.suggestions.join(", ")}`;
+            }
+            setStatus(message, true);
+            return;
+          }
+
+          renderCards(data.recommendations || []);
+
+          const mode = data.recommendations?.[0]?.mode || "content-only";
+          modeBadge.textContent = mode === "hybrid" ? "Hybrid Mode" : "Recommendation Mode";
+          modeBadge.classList.remove("hidden");
+
+          setStatus(`Showing ${data.total} recommendations for \"${data.query}\".`);
+        } catch (error) {
+          setStatus("Server error while fetching recommendations.", true);
+        }
+      }
+
+      movieInput.addEventListener("input", (event) => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => loadSuggestions(event.target.value), 200);
+      });
+
+      movieInput.addEventListener("focus", () => {
+        if (movieInput.value.trim().length >= 2) {
+          loadSuggestions(movieInput.value.trim());
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!suggestionsBox.contains(event.target) && event.target !== movieInput) {
+          clearSuggestions();
+        }
+      });
+
+      recommendBtn.addEventListener("click", fetchRecommendations);
+      movieInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          fetchRecommendations();
+        }
+      });
+    </script>
+
+    <style>
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  </body>
+</html>
