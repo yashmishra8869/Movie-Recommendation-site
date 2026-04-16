@@ -15,7 +15,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 CSV_PATH = os.path.join(os.path.dirname(__file__), "movies.csv")
-TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "..", "templates")
 TMDB_API_KEY = os.environ.get("TMDB_API_KEY")
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 POSTER_FALLBACK = "https://via.placeholder.com/500x750?text=No+Poster"
@@ -242,7 +241,7 @@ def fetch_tmdb_poster(movie_title: str, tmdb_id: Optional[int]) -> str:
     return POSTER_FALLBACK
 
 
-app = Flask(__name__, template_folder=TEMPLATE_DIR)
+app = Flask(__name__, template_folder="../templates")
 CORS(app)
 
 ENGINE: Optional[HybridEngine] = None
