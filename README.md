@@ -112,13 +112,20 @@ py -3.13 api/index.py
 
 1. Push project to GitHub.
 2. Import repository in Vercel.
-3. Add environment variable in Vercel Project Settings:
-   - TMDB_API_KEY = <your_actual_tmdb_key>
+3. Add the TMDB key in Vercel Project Settings:
+  - Open the project in Vercel.
+  - Go to Settings -> Environment Variables.
+  - Add `TMDB_API_KEY` with your real TMDB v3 API key.
+  - Scope it to Production, Preview, and Development if you want it available everywhere.
 4. Deploy.
 
 Vercel reads:
 - vercel.json for route/build setup
 - api/index.py as Python server entrypoint
+
+Local development reads:
+- `.env` for `TMDB_API_KEY`
+- `.env` is ignored by git, so the key stays out of the repository.
 
 ## Notes
 
